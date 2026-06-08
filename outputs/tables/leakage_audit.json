@@ -1,0 +1,54 @@
+{
+  "contaminated": {
+    "Random Forest": {
+      "roc_auc": 0.9796,
+      "f1": 0.9313
+    }
+  },
+  "clean": {
+    "Logistic Regression": {
+      "roc_auc": 0.5528,
+      "f1": 0.5301
+    },
+    "Random Forest": {
+      "roc_auc": 0.5779,
+      "f1": 0.4893
+    },
+    "XGBoost": {
+      "roc_auc": 0.5854,
+      "f1": 0.5343
+    }
+  },
+  "leakage_drop_auc": 0.4018,
+  "leaked_features": [
+    "log_abs_pnl",
+    "risk_adjusted_return",
+    "daily_win_rate",
+    "daily_pnl",
+    "account_win_rate",
+    "account_total_pnl",
+    "account_sharpe"
+  ],
+  "clean_features_used": [
+    "sentiment_score",
+    "trade_direction",
+    "trade_size_usd",
+    "account_win_rate_train",
+    "account_total_pnl_train",
+    "account_sharpe_train",
+    "account_trade_count_train",
+    "account_long_ratio_train"
+  ],
+  "feature_importance_clean": {
+    "trade_size_usd": 0.8407,
+    "trade_direction": 0.0392,
+    "account_win_rate_train": 0.0332,
+    "sentiment_score": 0.0247,
+    "account_long_ratio_train": 0.0183,
+    "account_total_pnl_train": 0.0164,
+    "account_sharpe_train": 0.0155,
+    "account_trade_count_train": 0.0119
+  },
+  "split_method": "chronological_80_20",
+  "account_features_method": "training_set_only"
+}

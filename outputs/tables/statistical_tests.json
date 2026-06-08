@@ -1,0 +1,55 @@
+{
+  "anova": {
+    "f_statistic": 16.646407144617207,
+    "p_value": 8.265972232704427e-11,
+    "significant": true
+  },
+  "correlation": {
+    "pearson_r": 0.0073,
+    "p_value": 0.0059
+  },
+  "pairwise_ttests": [
+    {
+      "group1": "Fear",
+      "group2": "Neutral",
+      "t_stat": 4.1658,
+      "p_value": 0.0,
+      "cohens_d": 0.0412
+    },
+    {
+      "group1": "Fear",
+      "group2": "Greed",
+      "t_stat": -4.7964,
+      "p_value": 0.0,
+      "cohens_d": -0.0346
+    },
+    {
+      "group1": "Fear",
+      "group2": "Extreme Greed",
+      "t_stat": 6.2402,
+      "p_value": 0.0,
+      "cohens_d": 0.0343
+    },
+    {
+      "group1": "Neutral",
+      "group2": "Greed",
+      "t_stat": -6.6891,
+      "p_value": 0.0,
+      "cohens_d": -0.068
+    },
+    {
+      "group1": "Neutral",
+      "group2": "Extreme Greed",
+      "t_stat": -0.6993,
+      "p_value": 0.4844,
+      "cohens_d": -0.0134
+    },
+    {
+      "group1": "Greed",
+      "group2": "Extreme Greed",
+      "t_stat": 8.5983,
+      "p_value": 0.0,
+      "cohens_d": 0.0632
+    }
+  ]
+}
