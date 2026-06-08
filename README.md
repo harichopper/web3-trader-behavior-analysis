@@ -252,4 +252,4 @@ IF sentiment == "Extreme Greed":
 
 ---
 
-*Bitcoin Sentiment × Hyperliquid Trader Behavior Analysis | Quantitative Research Project | 2024*
+*Bitcoin Sentiment × Hyperliquid Trader Behavior Analysis | Quantitative Research Project | 2026*
