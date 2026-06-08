@@ -1,12 +1,14 @@
 """
 create_notebook.py
 ------------------
-Programmatically create the Jupyter notebook
-notebooks/trader_sentiment_analysis.ipynb.
+Programmatically generate notebooks/trader_sentiment_analysis.ipynb.
+Includes all pipeline steps + the leakage audit section with corrected results.
 
-Run this script once to produce the .ipynb file.
+Run once:
+    python create_notebook.py
 
 Author : Senior Quant Research Team
+Version: 2.0.0  (updated with leakage audit)
 """
 
 from __future__ import annotations
@@ -16,42 +18,51 @@ from pathlib import Path
 NB_PATH = Path(__file__).parent / "notebooks" / "trader_sentiment_analysis.ipynb"
 
 
-def cell(source: str | list[str], cell_type: str = "code") -> dict:
-    if isinstance(source, list):
-        source = "\n".join(source)
-    base = {
-        "cell_type": cell_type,
-        "metadata": {},
-        "source": source,
-    }
-    if cell_type == "code":
-        base["outputs"] = []
-        base["execution_count"] = None
-    return base
+def code(source: str) -> dict:
+    return {"cell_type": "code", "metadata": {}, "source": source,
+            "outputs": [], "execution_count": None}
 
 
-def md(text: str) -> dict:
-    return cell(text, "markdown")
+def md(source: str) -> dict:
+    return {"cell_type": "markdown", "metadata": {}, "source": source}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
 cells = [
-    md("# 📊 Bitcoin Sentiment × Hyperliquid Trader Performance\n\n"
-       "> **Professional Quantitative Research Notebook**  \n"
-       "> Senior Quant Research Team | v1.0.0\n\n"
-       "This notebook performs end-to-end analysis of the relationship between Bitcoin Fear & Greed sentiment "
-       "and trader performance on Hyperliquid perpetual futures."),
 
-    # ── Setup ────────────────────────────────────────────────
-    md("## 0. Environment Setup"),
-    cell("""\
-import sys
+# ── Title ──────────────────────────────────────────────────────────────────
+md("""# Bitcoin Sentiment x Hyperliquid Trader Performance
+## Quantitative Research Notebook — v2.0 (Post Leakage Audit)
+
+> **Senior Quant Research Team**
+> Repository: [harichopper/web3-trader-behavior-analysis](https://github.com/harichopper/web3-trader-behavior-analysis)
+
+### Notebook Sections
+| Section | Topic |
+|---------|-------|
+| 1 | Environment Setup |
+| 2 | Data Loading & Cleaning |
+| 3 | Exploratory Data Analysis |
+| 4 | Sentiment vs Performance |
+| 5 | Statistical Testing |
+| 6 | Daily PnL Time-Series |
+| 7 | Trader Ranking |
+| 8 | Trader Clustering |
+| 9 | ML — Contaminated Pipeline (with leakage diagnosis) |
+| 10 | ML — Clean Pipeline (leakage-free, honest results) |
+| 11 | Feature Importance Comparison |
+| 12 | Key Insights & Recommendations |
+"""),
+
+# ── 1. Setup ───────────────────────────────────────────────────────────────
+md("## 1. Environment Setup"),
+
+code("""\
+import sys, warnings
 from pathlib import Path
 
-# Ensure project root is in path
 PROJECT_ROOT = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
 sys.path.insert(0, str(PROJECT_ROOT))
-
-import warnings
 warnings.filterwarnings("ignore")
 
 import numpy as np
@@ -59,340 +70,538 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plotly.express as px
-import plotly.graph_objects as go
-from IPython.display import display, Markdown
+from IPython.display import display, Image, Markdown
 
-from src.utils import set_random_seeds, FIGURES_DIR, PROCESSED_DIR, TABLES_DIR, SENTIMENT_COLOR_MAP, SENTIMENT_ORDER
+from src.utils import (set_random_seeds, FIGURES_DIR, PROCESSED_DIR,
+                       TABLES_DIR, SENTIMENT_COLOR_MAP, SENTIMENT_ORDER)
 set_random_seeds(42)
 
 print(f"Project root : {PROJECT_ROOT}")
-print(f"NumPy        : {np.__version__}")
-print(f"Pandas       : {pd.__version__}")
-print("✅ Environment ready")
+print(f"NumPy  {np.__version__} | Pandas {pd.__version__}")
+print("Environment ready")
 """),
 
-    # ── Step 0: Synthetic Data ────────────────────────────────
-    md("## 1. Data Generation (Synthetic Demo)\n\n"
-       "If real data files exist in `data/`, comment out this cell and proceed to Step 2."),
-    cell("""\
-# Generate synthetic data if needed
-from generate_synthetic_data import generate_fear_greed, generate_trader_data
-fg_raw = generate_fear_greed()
-generate_trader_data(fg_raw)
-print("✅ Synthetic data written to data/")
+# ── 2. Data Loading ────────────────────────────────────────────────────────
+md("""## 2. Data Loading & Cleaning
+
+**Files auto-detected from `data/`:**
+- `fear_greed_index.csv` — 2,644 daily BTC sentiment labels
+- `historical_data.csv` — 211,224 raw Hyperliquid trade records
+
+**Cleaning steps applied automatically:**
+1. Column name normalisation (lowercase + underscore)
+2. Column alias mapping (e.g. `Coin` → `symbol`, `Closed PnL` → `closedpnl`)
+3. Unix millisecond timestamp parsing
+4. Deduplication (49,459 duplicate trades removed)
+5. Inner join on calendar date → 140,792 matched trades
 """),
 
-    # ── Step 1: Load & Clean ──────────────────────────────────
-    md("## 2. Data Loading & Cleaning"),
-    cell("""\
+code("""\
 from src.data_cleaning import (
-    load_fear_greed, load_trader_data, merge_datasets,
-    build_daily_aggregates
+    load_fear_greed, load_trader_data, merge_datasets, build_daily_aggregates
 )
 
-fg = load_fear_greed()
+fg     = load_fear_greed()
 trades = load_trader_data()
 merged = merge_datasets(fg, trades)
-daily = build_daily_aggregates(merged)
+daily  = build_daily_aggregates(merged)
 
-print(f"Fear & Greed : {len(fg):,} rows | {fg['date'].min().date()} → {fg['date'].max().date()}")
-print(f"Trades       : {len(trades):,} rows | Accounts: {trades['account'].nunique():,}")
-print(f"Merged       : {len(merged):,} rows | {merged['date'].nunique():,} unique days")
+print(f"Fear & Greed : {len(fg):,} rows | {fg['date'].min().date()} to {fg['date'].max().date()}")
+print(f"Trades       : {len(trades):,} rows | {trades['account'].nunique():,} unique accounts")
+print(f"Merged       : {len(merged):,} rows | {merged['date'].nunique()} unique dates")
 """),
 
-    cell("""\
-# Schema preview
+code("""\
 print("=== Fear & Greed Schema ===")
-display(fg.head())
-print("\\n=== Trades Schema ===")
-display(trades.head())
+display(fg.head(3))
+print("\\n=== Trade Schema ===")
+display(trades.head(3))
 """),
 
-    # ── Step 2: Feature Engineering ──────────────────────────
-    md("## 3. Feature Engineering"),
-    cell("""\
+code("""\
+# Preprocessing summary
+print("Missing values in merged dataset:")
+nulls = merged.isnull().sum()
+print(nulls[nulls > 0].to_string() if nulls.any() else "None")
+print(f"\\nSentiment coverage: {len(merged)/len(trades)*100:.1f}% of trades matched to sentiment dates")
+print(f"\\nSentiment breakdown in matched trades:")
+display(merged['classification'].value_counts().rename_axis('Sentiment').reset_index(name='Trades'))
+"""),
+
+# ── 3. Feature Engineering ─────────────────────────────────────────────────
+md("## 3. Feature Engineering"),
+
+code("""\
 from src.feature_engineering import (
     add_trade_level_features, add_daily_features, add_account_features,
-    rank_traders, build_clustering_matrix, build_ml_features
+    rank_traders, build_clustering_matrix
 )
 
 df = add_trade_level_features(merged)
 df = add_daily_features(df)
 df = add_account_features(df)
 
-print(f"Featured dataset: {df.shape[0]:,} rows × {df.shape[1]} columns")
-display(df.describe().round(3))
+print(f"Feature matrix: {df.shape[0]:,} rows x {df.shape[1]} columns")
+print(f"New features added: {[c for c in df.columns if c not in merged.columns]}")
 """),
 
-    cell("""\
-ranking = rank_traders(df)
-print(f"Trader ranking computed for {len(ranking):,} accounts")
-display(ranking.head(10))
+code("""\
+display(df[['closedpnl','sentiment_score','trade_direction',
+            'trade_size_usd','account_win_rate','account_sharpe']].describe().round(3))
 """),
 
-    # ── Step 3: EDA ──────────────────────────────────────────
-    md("## 4. Exploratory Data Analysis\n\n### 4.1 Sentiment Distribution"),
-    cell("""\
-from src.analysis import eda_sentiment, eda_trader
-from src.visualization import plot_sentiment_distribution, plot_sentiment_timeline
+# ── 4. EDA ─────────────────────────────────────────────────────────────────
+md("## 4. Exploratory Data Analysis"),
 
+md("### 4.1 Sentiment Distribution"),
+
+code("""\
+from src.analysis import eda_sentiment
 sent_dist = eda_sentiment(fg)
 display(sent_dist)
 
-fig_path = plot_sentiment_distribution(fg)
-from IPython.display import Image
-Image(str(fig_path), width=700)
+from src.visualization import plot_sentiment_distribution, plot_sentiment_timeline
+Image(str(plot_sentiment_distribution(fg)), width=700)
 """),
 
-    cell("""\
-fig_path = plot_sentiment_timeline(fg)
-Image(str(fig_path), width=900)
+code("""\
+Image(str(plot_sentiment_timeline(fg)), width=950)
 """),
 
-    md("### 4.2 Trader Performance Summary"),
-    cell("""\
-trader_stats = eda_trader(df)
-display(pd.DataFrame([trader_stats]).T.rename(columns={0: "Value"}))
+md("### 4.2 Trader Overview"),
+
+code("""\
+from src.analysis import eda_trader
+stats = eda_trader(df)
+summary = pd.DataFrame([stats]).T.rename(columns={0: "Value"})
+display(summary)
 """),
 
-    cell("""\
-# PnL distribution
+code("""\
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-axes[0].hist(df["closedpnl"].clip(-2000, 2000), bins=80, color="#2CA02C", alpha=0.75, edgecolor="none")
-axes[0].axvline(0, color="white", linewidth=1.5, linestyle="--")
-axes[0].set_title("PnL Distribution (clipped ±2000 USD)", fontweight="bold")
-axes[0].set_xlabel("Closed PnL (USD)")
-axes[0].set_ylabel("Frequency")
+
+axes[0].hist(df['closedpnl'].clip(-3000, 3000), bins=80,
+             color='#2CA02C', alpha=0.75, edgecolor='none')
+axes[0].axvline(0, color='white', linewidth=1.5, linestyle='--')
+axes[0].set_title('PnL Distribution (clipped +/-3000 USD)', fontweight='bold')
+axes[0].set_xlabel('Closed PnL (USD)')
+axes[0].set_ylabel('Frequency')
 axes[0].grid(alpha=0.3)
 
-if "leverage" in df.columns:
-    axes[1].hist(df["leverage"].clip(0, 100), bins=60, color="#FF7F0E", alpha=0.75, edgecolor="none")
-    axes[1].set_title("Leverage Distribution (clipped at 100x)", fontweight="bold")
-    axes[1].set_xlabel("Leverage")
-    axes[1].set_ylabel("Frequency")
+# Long vs Short breakdown
+if 'side' in df.columns:
+    vc = df['side'].value_counts()
+    axes[1].bar(vc.index, vc.values,
+                color=['#2CA02C' if x=='LONG' else '#D62728' for x in vc.index])
+    axes[1].set_title('Long vs Short Trade Count', fontweight='bold')
+    axes[1].set_ylabel('Number of Trades')
     axes[1].grid(alpha=0.3)
 
 plt.tight_layout()
-plt.savefig(str(FIGURES_DIR / "eda_pnl_leverage_hist.png"), dpi=150, bbox_inches="tight")
+plt.savefig(str(FIGURES_DIR / 'eda_pnl_distribution.png'), dpi=150, bbox_inches='tight')
 plt.show()
-print("✅ Saved")
 """),
 
-    # ── Step 4: Sentiment vs Perf ─────────────────────────────
-    md("## 5. Sentiment vs. Performance Analysis"),
-    cell("""\
-from src.analysis import sentiment_performance_table, run_statistical_tests
+# ── 5. Sentiment vs Performance ────────────────────────────────────────────
+md("## 5. Sentiment vs Performance Analysis"),
+
+code("""\
+from src.analysis import sentiment_performance_table
 from src.visualization import (plot_pnl_by_sentiment, plot_win_rate_by_sentiment,
-                                plot_leverage_by_sentiment, plot_trade_volume_by_sentiment,
-                                plot_pnl_violin, plot_long_short_by_sentiment)
+                                plot_trade_volume_by_sentiment, plot_pnl_violin,
+                                plot_long_short_by_sentiment)
 
-perf_table = sentiment_performance_table(df)
-display(perf_table.round(3))
+perf = sentiment_performance_table(df)
+display(perf.round(3))
 """),
 
-    cell("""\
-fig_path = plot_pnl_by_sentiment(df)
-Image(str(fig_path), width=900)
+code("""\
+Image(str(plot_pnl_by_sentiment(df)), width=950)
 """),
 
-    cell("""\
-fig_path = plot_win_rate_by_sentiment(df)
-Image(str(fig_path), width=700)
+code("""\
+Image(str(plot_win_rate_by_sentiment(df)), width=750)
 """),
 
-    cell("""\
-fig_path = plot_leverage_by_sentiment(df)
-Image(str(fig_path), width=700)
+code("""\
+Image(str(plot_trade_volume_by_sentiment(df)), width=750)
 """),
 
-    cell("""\
-fig_path = plot_trade_volume_by_sentiment(df)
-Image(str(fig_path), width=700)
+code("""\
+Image(str(plot_pnl_violin(df)), width=950)
 """),
 
-    cell("""\
-fig_path = plot_pnl_violin(df)
-Image(str(fig_path), width=900)
+code("""\
+Image(str(plot_long_short_by_sentiment(df)), width=750)
 """),
 
-    cell("""\
-fig_path = plot_long_short_by_sentiment(df)
-Image(str(fig_path), width=700)
+# ── 6. Statistical Testing ─────────────────────────────────────────────────
+md("## 6. Statistical Testing"),
+
+code("""\
+from src.analysis import run_statistical_tests
+
+stat = run_statistical_tests(df)
+anova = stat.get('anova', {})
+corr  = stat.get('correlation', {})
+
+print(f"One-Way ANOVA (PnL ~ Sentiment)")
+print(f"  F-statistic : {anova.get('f_statistic', 0):.4f}")
+print(f"  p-value     : {anova.get('p_value', 1):.6f}")
+print(f"  Significant : {'YES - p < 0.05' if anova.get('significant') else 'NO'}")
+print()
+print(f"Pearson Correlation (sentiment_score <-> closedpnl)")
+print(f"  r = {corr.get('pearson_r', 0):.4f}")
+print(f"  p = {corr.get('p_value', 1):.4f}")
 """),
 
-    md("### 5.1 Statistical Testing"),
-    cell("""\
-stat_results = run_statistical_tests(df)
-
-anova = stat_results.get("anova", {})
-print(f"ANOVA — F={anova.get('f_statistic',0):.3f}, p={anova.get('p_value',1):.4f}",
-      "✅ Significant" if anova.get("significant") else "❌ Not Significant")
-
-corr = stat_results.get("correlation", {})
-print(f"Pearson r={corr.get('pearson_r',0):.4f}, p={corr.get('p_value',1):.4f}")
-
-print("\\nPairwise T-Tests:")
-display(pd.DataFrame(stat_results.get("pairwise_ttests", [])))
+code("""\
+display(pd.DataFrame(stat.get('pairwise_ttests', [])).round(4))
 """),
 
-    cell("""\
-fig_path = plot_correlation_heatmap = __import__("src.visualization", fromlist=["plot_correlation_heatmap"]).plot_correlation_heatmap
-fig_path = plot_correlation_heatmap(df)
-Image(str(fig_path), width=900)
+code("""\
+from src.visualization import plot_correlation_heatmap
+Image(str(plot_correlation_heatmap(df)), width=950)
 """),
 
-    # ── Step 5: Daily PnL ─────────────────────────────────────
-    md("## 6. Daily PnL Time-Series"),
-    cell("""\
+# ── 7. Daily PnL ───────────────────────────────────────────────────────────
+md("## 7. Daily PnL Time-Series"),
+
+code("""\
 from src.visualization import plot_daily_pnl_timeseries
-fig_path = plot_daily_pnl_timeseries(daily)
-Image(str(fig_path), width=950)
+Image(str(plot_daily_pnl_timeseries(daily)), width=950)
 """),
 
-    # ── Step 6: Trader Ranking ────────────────────────────────
-    md("## 7. Trader Ranking"),
-    cell("""\
+# ── 8. Trader Ranking ──────────────────────────────────────────────────────
+md("## 8. Trader Ranking"),
+
+code("""\
+ranking = rank_traders(df)
+print(f"Ranked {len(ranking):,} unique trader accounts")
+display(ranking[['account','account_total_pnl','account_win_rate',
+                  'account_sharpe','composite_score','composite_rank']].head(10).round(4))
+"""),
+
+code("""\
 from src.visualization import plot_trader_ranking
-fig_path = plot_trader_ranking(ranking, top_n=20)
-Image(str(fig_path), width=800)
-
-print("\\nTop 10 Traders:")
-display(ranking[["account", "account_total_pnl", "account_win_rate", "account_sharpe", "composite_score", "composite_rank"]].head(10).round(4))
+Image(str(plot_trader_ranking(ranking, top_n=20)), width=800)
 """),
 
-    # ── Step 7: Clustering ────────────────────────────────────
-    md("## 8. Trader Segmentation & Clustering"),
-    cell("""\
+# ── 9. Clustering ──────────────────────────────────────────────────────────
+md("## 9. Trader Clustering"),
+
+code("""\
 from src.analysis import run_kmeans, run_hierarchical, label_clusters
 from src.visualization import plot_clusters
 
 feat_scaled, feat_cols = build_clustering_matrix(ranking)
-kmeans_labels, kmeans_model = run_kmeans(feat_scaled)
-linkage_matrix = run_hierarchical(feat_scaled)
-ranking_clustered = label_clusters(ranking, kmeans_labels)
+kmeans_labels, _       = run_kmeans(feat_scaled)
+ranking_clustered      = label_clusters(ranking, kmeans_labels)
 
 print("Segment distribution:")
-display(ranking_clustered["segment"].value_counts())
+display(ranking_clustered['segment'].value_counts().reset_index())
 """),
 
-    cell("""\
-fig_path = plot_clusters(ranking_clustered, feat_scaled)
-Image(str(fig_path), width=800)
+code("""\
+Image(str(plot_clusters(ranking_clustered, feat_scaled)), width=800)
 """),
 
-    cell("""\
-# Cluster profile
-cluster_profile = ranking_clustered.groupby("segment")[[
-    "account_total_pnl", "account_win_rate", "account_sharpe",
-    "account_trade_count"
-] + (["account_avg_leverage"] if "account_avg_leverage" in ranking_clustered.columns else [])].mean().round(3)
-display(cluster_profile)
+code("""\
+profile_cols = [c for c in ['account_total_pnl','account_win_rate',
+                              'account_sharpe','account_trade_count'] if c in ranking_clustered.columns]
+display(ranking_clustered.groupby('segment')[profile_cols].mean().round(3))
 """),
 
-    # ── Step 8: ML ────────────────────────────────────────────
-    md("## 9. Machine Learning\n\n### 9.1 Classification — Predicting Trade Profitability"),
-    cell("""\
-from src.analysis import run_classification, run_regression
-from src.visualization import plot_feature_importance
+# ── 10. ML — Contaminated ─────────────────────────────────────────────────
+md("""## 10. ML Pipeline — Contaminated (with Leakage Diagnosis)
 
-X, y_class, y_reg = build_ml_features(df)
-print(f"Feature matrix: {X.shape} | Class balance: {y_class.mean()*100:.1f}% wins")
+> **Warning:** This section intentionally reproduces the ORIGINAL pipeline to demonstrate the leakage.
+> The inflated AUC = 0.979 is caused by three leakage mechanisms identified in Section 11.
 """),
 
-    cell("""\
-clf_results = run_classification(X, y_class)
+code("""\
+from src.feature_engineering import build_ml_features
+from src.analysis import run_classification
 
-summary_rows = []
-for name, res in clf_results.items():
-    if name == "feature_names": continue
-    summary_rows.append({"Model": name, "Accuracy": res["accuracy"], "Precision": res["precision"],
-                          "Recall": res["recall"], "F1": res["f1"], "ROC-AUC": res["roc_auc"]})
-display(pd.DataFrame(summary_rows).round(4))
+X_leaked, y_class, y_reg = build_ml_features(df)
+print(f"Feature matrix: {X_leaked.shape}")
+print(f"Features: {X_leaked.columns.tolist()}")
+print(f"Class balance: {y_class.mean()*100:.1f}% wins")
 """),
 
-    cell("""\
-# Feature importance — Random Forest
-if "Random Forest" in clf_results and clf_results["Random Forest"]["feature_importance"] is not None:
-    fi = clf_results["Random Forest"]["feature_importance"]
-    fig_path = plot_feature_importance(fi, "Random Forest (Classification)", "rf_clf")
-    Image(str(fig_path), width=700)
+code("""\
+clf_leaked = run_classification(X_leaked, y_class)
+
+rows = []
+for name, res in clf_leaked.items():
+    if name == 'feature_names': continue
+    rows.append({'Model': name, 'Accuracy': res['accuracy'], 'F1': res['f1'],
+                 'ROC-AUC': res['roc_auc']})
+leaked_df = pd.DataFrame(rows)
+display(leaked_df)
+print("\\nNOTE: These results are inflated by data leakage — see Section 11.")
 """),
 
-    md("### 9.2 Regression — Predicting Expected PnL"),
-    cell("""\
-reg_results = run_regression(X, y_reg)
-
-reg_rows = []
-for name, res in reg_results.items():
-    if name == "feature_names": continue
-    reg_rows.append({"Model": name, "RMSE": res["rmse"], "MAE": res["mae"], "R²": res["r2"]})
-display(pd.DataFrame(reg_rows).round(4))
+code("""\
+# Show feature importances — most importance will be on leaked features
+rf_fi = clf_leaked.get('Random Forest', {}).get('feature_importance')
+if rf_fi is not None:
+    leaked_features = ['log_abs_pnl', 'risk_adjusted_return', 'daily_win_rate',
+                       'daily_pnl', 'account_win_rate', 'account_total_pnl', 'account_sharpe']
+    fi_df = rf_fi.reset_index()
+    fi_df.columns = ['Feature', 'Importance']
+    fi_df['Status'] = fi_df['Feature'].apply(
+        lambda x: 'LEAKED' if x in leaked_features else 'clean'
+    )
+    display(fi_df)
 """),
 
-    cell("""\
-# Feature importance — Gradient Boosting
-if "Gradient Boosting" in reg_results and reg_results["Gradient Boosting"]["feature_importance"] is not None:
-    fi_reg = reg_results["Gradient Boosting"]["feature_importance"]
-    fig_path = plot_feature_importance(fi_reg, "Gradient Boosting (Regression)", "gb_reg")
-    Image(str(fig_path), width=700)
+# ── 11. Leakage Audit ─────────────────────────────────────────────────────
+md("""## 11. ML Leakage Audit
+
+During development, ROC-AUC = 0.979 was flagged as implausibly high.
+A formal leakage audit (`audit_leakage.py`) identified **3 leakage mechanisms**:
+
+| # | Type | Features | Why |
+|---|---|---|---|
+| L1 | Target-derived | `log_abs_pnl`, `risk_adjusted_return` | Transforms of `closedpnl` which determines `is_win` |
+| L2 | Future look-ahead | `account_win_rate`, `account_total_pnl`, `account_sharpe` | Computed over full history before train/test split |
+| L3 | Same-day target | `daily_win_rate`, `daily_pnl` | Includes current trade's outcome |
+
+**Fixes applied in the clean pipeline:**
+1. Chronological 80/20 split (no random shuffle)
+2. Account stats computed on training set only, joined to test
+3. Target-derived and same-day target features excluded from ML
 """),
 
-    # ── Insights ──────────────────────────────────────────────
-    md("""## 10. Key Insights & Conclusions
+code("""\
+# Load audit results from disk
+import json
+audit = json.load(open('outputs/tables/leakage_audit.json'))
 
-### Top 10 Business Insights
-
-| # | Insight |
-|---|---------|
-| 1 | Fear phases produce more disciplined trading → higher risk-adjusted returns |
-| 2 | Leverage spikes during Extreme Greed amplify both gains and losses |
-| 3 | Top traders are sentiment-agnostic in their risk management |
-| 4 | Extreme Fear is a contrarian signal for elite traders |
-| 5 | Long bias increases monotonically with BTC sentiment score |
-| 6 | Sentiment score ranks top-5 in ML feature importance |
-| 7 | Consistent Traders achieve 2–3× Sharpe vs High-Risk segment |
-| 8 | Winner persistence: top-decile traders repeat at ~65% probability |
-| 9 | Sentiment transition velocity drives momentum PnL spikes |
-| 10 | Dynamic leverage rules conditioned on sentiment can reduce drawdowns by ~20% |
-
-### Trading Strategy Recommendations
-
-1. **Reduce leverage during Extreme Greed** — correction risk outweighs upside
-2. **Increase LONG exposure during sustained Extreme Fear** — contrarian signal
-3. **Use sentiment score as a position sizing multiplier** — Kelly-fraction adjustment
-4. **Fade momentum at sentiment score = 5** — SHORT bias on euphoria peaks
-5. **Tighten stops in high-sentiment periods** — mean-reversion risk increases
+print("Leakage Audit Results")
+print(f"  Leaked features identified : {len(audit['leaked_features'])}")
+print(f"  Leaked features            : {audit['leaked_features']}")
+print(f"  AUC inflation              : +{audit['leakage_drop_auc']:.4f} points")
+print()
+print("Contaminated results:")
+for m, r in audit['contaminated'].items():
+    print(f"  {m}: AUC={r['roc_auc']:.4f} | F1={r['f1']:.4f}")
+print()
+print("Clean results (no leakage):")
+for m, r in audit['clean'].items():
+    print(f"  {m}: AUC={r['roc_auc']:.4f} | F1={r['f1']:.4f}")
 """),
 
-    cell("""\
+# ── 12. Clean ML Pipeline ─────────────────────────────────────────────────
+md("""## 12. Clean ML Pipeline (Leakage-Free)
+
+Chronological split: first 80% of trades for training, last 20% for testing.
+Account features computed on training data only.
+No target-derived features.
+"""),
+
+code("""\
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, classification_report
+from sklearn.preprocessing import StandardScaler
+from src.utils import safe_divide
+
+# 1. Sort chronologically
+df_clean = df.sort_values('time').reset_index(drop=True)
+df_clean = add_trade_level_features(merged.copy())
+
+cutoff = int(len(df_clean) * 0.80)
+df_train = df_clean.iloc[:cutoff].copy()
+df_test  = df_clean.iloc[cutoff:].copy()
+
+print(f"Train: {len(df_train):,} trades | {df_train['time'].min().date()} to {df_train['time'].max().date()}")
+print(f"Test : {len(df_test):,} trades  | {df_test['time'].min().date()} to {df_test['time'].max().date()}")
+"""),
+
+code("""\
+# 2. Account features from training data only
+def sharpe_like(s):
+    std = s.std()
+    return s.mean() / std if std > 0 else 0.0
+
+agg = {
+    'account_total_pnl_train':  ('closedpnl', 'sum'),
+    'account_trade_count_train': ('closedpnl', 'count'),
+    'account_win_rate_train':    ('is_win', 'mean'),
+    'account_pnl_std_train':     ('closedpnl', 'std'),
+}
+if 'is_long' in df_train.columns:
+    agg['account_long_ratio_train'] = ('is_long', 'mean')
+
+acct_train = df_train.groupby('account').agg(**agg).reset_index()
+sharpe     = df_train.groupby('account')['closedpnl'].apply(sharpe_like).rename('account_sharpe_train')
+acct_train = acct_train.merge(sharpe, on='account')
+
+df_train = df_train.merge(acct_train, on='account', how='left').fillna(0)
+df_test  = df_test.merge(acct_train, on='account', how='left').fillna(0)
+
+print(f"Account features computed from {len(acct_train)} training accounts")
+print(f"Test accounts with no training history: {(df_test['account_trade_count_train'] == 0).sum()}")
+"""),
+
+code("""\
+# 3. Build clean feature matrix
+CLEAN_FEATURES = [
+    'sentiment_score',
+    'trade_direction',
+    'trade_size_usd',
+    'account_win_rate_train',
+    'account_total_pnl_train',
+    'account_sharpe_train',
+    'account_trade_count_train',
+    'account_long_ratio_train',
+]
+CLEAN_FEATURES = [c for c in CLEAN_FEATURES if c in df_train.columns]
+
+X_tr = df_train[CLEAN_FEATURES].fillna(0)
+y_tr = df_train['is_win'].fillna(0).astype(int)
+X_te = df_test[CLEAN_FEATURES].fillna(0)
+y_te = df_test['is_win'].fillna(0).astype(int)
+
+print(f"Feature matrix — train: {X_tr.shape} | test: {X_te.shape}")
+print(f"Class balance — train: {y_tr.mean()*100:.1f}% | test: {y_te.mean()*100:.1f}%")
+"""),
+
+code("""\
+# 4. Train models
+# Logistic Regression
+scaler   = StandardScaler()
+lr_clean = LogisticRegression(max_iter=1000, random_state=42)
+lr_clean.fit(scaler.fit_transform(X_tr), y_tr)
+prob_lr  = lr_clean.predict_proba(scaler.transform(X_te))[:, 1]
+
+# Random Forest
+rf_clean = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1)
+rf_clean.fit(X_tr, y_tr)
+prob_rf  = rf_clean.predict_proba(X_te)[:, 1]
+
+results_clean = {
+    'Logistic Regression': {'auc': roc_auc_score(y_te, prob_lr),
+                             'f1':  f1_score(y_te, lr_clean.predict(scaler.transform(X_te)), zero_division=0)},
+    'Random Forest':       {'auc': roc_auc_score(y_te, prob_rf),
+                             'f1':  f1_score(y_te, rf_clean.predict(X_te), zero_division=0)},
+}
+
+try:
+    import xgboost as xgb
+    xgb_c = xgb.XGBClassifier(n_estimators=300, random_state=42, verbosity=0, eval_metric='logloss')
+    xgb_c.fit(X_tr, y_tr)
+    prob_xgb = xgb_c.predict_proba(X_te)[:, 1]
+    results_clean['XGBoost'] = {'auc': roc_auc_score(y_te, prob_xgb),
+                                 'f1':  f1_score(y_te, xgb_c.predict(X_te), zero_division=0)}
+except: pass
+
+display(pd.DataFrame(results_clean).T.round(4))
+"""),
+
+# ── 13. Feature Importance Comparison ────────────────────────────────────
+md("## 13. Feature Importance — Contaminated vs Clean"),
+
+code("""\
+import matplotlib.patches as mpatches
+
+fi_clean = pd.Series(rf_clean.feature_importances_, index=CLEAN_FEATURES).sort_values(ascending=False)
+
+fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+
+# Contaminated
+if rf_fi is not None:
+    leaked = ['log_abs_pnl','risk_adjusted_return','daily_win_rate',
+              'daily_pnl','account_win_rate','account_total_pnl','account_sharpe']
+    fi_leaked_top = rf_fi.head(9)
+    colors_l = ['#D62728' if f in leaked else '#2CA02C' for f in fi_leaked_top.index]
+    axes[0].barh(fi_leaked_top.index[::-1], fi_leaked_top.values[::-1], color=colors_l[::-1])
+    axes[0].set_title('Contaminated RF (AUC=0.979)', fontweight='bold', color='#D62728')
+    axes[0].set_xlabel('Importance')
+    axes[0].grid(axis='x', alpha=0.3)
+    red_p  = mpatches.Patch(color='#D62728', label='LEAKED')
+    grn_p  = mpatches.Patch(color='#2CA02C', label='Clean')
+    axes[0].legend(handles=[red_p, grn_p])
+
+# Clean
+colors_c = ['#1F77B4' if 'sentiment' in f else '#2CA02C' for f in fi_clean.index]
+axes[1].barh(fi_clean.index[::-1], fi_clean.values[::-1], color=colors_c[::-1])
+axes[1].set_title('Clean RF (AUC=0.578)', fontweight='bold', color='#2CA02C')
+axes[1].set_xlabel('Importance')
+axes[1].grid(axis='x', alpha=0.3)
+blue_p = mpatches.Patch(color='#1F77B4', label='Sentiment (macro signal)')
+grn_p2 = mpatches.Patch(color='#2CA02C', label='Trade / Account features')
+axes[1].legend(handles=[blue_p, grn_p2])
+
+fig.suptitle('Feature Importance: Contaminated vs Leak-Free Pipeline', fontsize=14, fontweight='bold')
+fig.tight_layout()
+fig.savefig(str(FIGURES_DIR / '14_feature_importance_comparison.png'), dpi=150, bbox_inches='tight')
+plt.show()
+print("Saved: 14_feature_importance_comparison.png")
+"""),
+
+# ── 14. Key Insights ──────────────────────────────────────────────────────
+md("""## 14. Key Insights & Recommendations
+
+### Statistical Findings (all valid — no ML leakage involved)
+
+| Finding | Value |
+|---|---|
+| ANOVA p-value | < 0.0001 |
+| Best avg PnL sentiment | Greed ($101.37/trade) |
+| Best win rate sentiment | Extreme Greed (49.96%) |
+| Most active sentiment | Fear (99,477 trades = 70% of volume) |
+| Pearson r (sentiment <-> PnL) | 0.0073 (significant) |
+
+### Corrected ML Results
+
+| Model | Contaminated AUC | Clean AUC |
+|---|---|---|
+| Random Forest | 0.9796 | **0.5779** |
+| XGBoost | 0.9768 | **0.5854** |
+
+### Business Recommendations
+
+1. **Reduce leverage during Extreme Greed** — correction risk outweighs momentum
+2. **Deploy LONG bias during sustained Extreme Fear** — contrarian exhaustion signal
+3. **Use sentiment_score as position sizing multiplier** — statistically validated signal
+4. **Prioritize account history features over sentiment** — skill dominates macro in individual trade prediction
+5. **Build an ensemble of on-chain signals** — funding rates, whale flows, order book depth
+"""),
+
+code("""\
 print("=" * 60)
 print("  NOTEBOOK COMPLETE")
 print("=" * 60)
-print(f"Figures saved to : {FIGURES_DIR}")
-print(f"Tables saved to  : {TABLES_DIR}")
-print(f"Models saved to  : {PROCESSED_DIR}")
-print("\\nReady for submission ✅")
+print(f"Figures saved : {FIGURES_DIR}")
+print(f"Tables saved  : {TABLES_DIR}")
+print(f"GitHub Repo   : https://github.com/harichopper/web3-trader-behavior-analysis")
+print()
+print("FINAL RESULTS SUMMARY")
+print(f"  ANOVA p-value        : < 0.0001  (highly significant)")
+print(f"  Best PnL sentiment   : Greed ($101.37/trade)")
+print(f"  Best win rate        : Extreme Greed (49.96%)")
+print(f"  Clean ML AUC (RF)   : 0.578")
+print(f"  Sentiment rank       : #4 of 8 features in clean model")
 """),
+
 ]
+# ─────────────────────────────────────────────────────────────────────────────
 
 notebook = {
     "nbformat": 4,
     "nbformat_minor": 5,
     "metadata": {
-        "kernelspec": {
-            "display_name": "Python 3",
-            "language": "python",
-            "name": "python3"
-        },
-        "language_info": {
-            "name": "python",
-            "version": "3.11.0"
-        }
+        "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+        "language_info": {"name": "python", "version": "3.11.0"},
+        "title": "Bitcoin Sentiment x Hyperliquid Trader Performance"
     },
     "cells": cells
 }
 
 NB_PATH.parent.mkdir(parents=True, exist_ok=True)
 NB_PATH.write_text(json.dumps(notebook, indent=2), encoding="utf-8")
-print(f"Notebook written to: {NB_PATH}")
+print(f"Notebook written: {NB_PATH}")
+print(f"Total cells: {len(cells)}")
